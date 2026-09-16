@@ -2,7 +2,8 @@ from transformers import AutoProcessor, LlavaForConditionalGeneration, BitsAndBy
 from transformers import (
     AutoProcessor, AutoModelForCausalLM, BitsAndBytesConfig,
     LlavaForConditionalGeneration, LlavaNextProcessor,GenerationConfig,
-    LlavaNextForConditionalGeneration, Qwen2VLForConditionalGeneration,AutoModel, AutoTokenizer
+    LlavaNextForConditionalGeneration, Qwen2VLForConditionalGeneration,AutoModel, AutoTokenizer, 
+    Qwen2_5_VLForConditionalGeneration
 )
 from PIL import Image
 import torch
@@ -153,7 +154,7 @@ def mllm_testing(df, processor, model, model_name, task, image_type, most="True"
                 predicted_answer = processor.tokenizer.decode(outputs[0], skip_special_tokens=True)
                 predicted_answer = clean_instruction_tokens(predicted_answer)
                 
-            elif model_name == 'qwen':
+            elif model_name == 'qwen2' or model_name == 'qwen2.5':
                 pil_img = Image.open(io.BytesIO(image_path)).convert("RGB") 
                 pil_img = pil_img.resize((224, 224), Image.LANCZOS)
                 
@@ -164,7 +165,6 @@ def mllm_testing(df, processor, model, model_name, task, image_type, most="True"
                         {"type": "text", "text": prompt},
                     ],
                 }]
- 
     
                 text = processor.apply_chat_template(
                     messages, tokenize=False, add_generation_prompt=True
@@ -247,7 +247,7 @@ def main():
     # TODO: update all file-names and paths to run on multiple tasks 
     # image_type = "counterfact" most="True"
     parser = argparse.ArgumentParser(description="Run MLLMs on all tasks.")
-    parser.add_argument('--model_version', type=str, choices=['llava-next', 'qwen' ,'janus'], required=True, help="Choose the model version.")
+    parser.add_argument('--model_version', type=str, choices=['llava-next', 'qwen2' ,'janus', 'qwen2.5'], required=True, help="Choose the model version.")
     parser.add_argument('--task', type=str, choices=['color', 'size'], required=True, help="Choose the task.")
     # NOTE: all images now have a perspective line. Keeping in to not mess up file names. 
     parser.add_argument('--line', type=str, choices=['True'], required=True, help="Can only select True. Shows perspective line on size-images.")
@@ -279,10 +279,19 @@ def main():
         )
         model = model.to(torch.bfloat16).cuda().eval()
 
-    elif args.model_version == 'qwen':
+    elif args.model_version == 'qwen2':
         processor = AutoProcessor.from_pretrained("Qwen/Qwen2-VL-7B-Instruct")
         model = Qwen2VLForConditionalGeneration.from_pretrained(
         "Qwen/Qwen2-VL-7B-Instruct", torch_dtype=torch.bfloat16, device_map="auto"
+        )
+        model.eval()
+        model = model.to(torch.bfloat16).cuda().eval()
+        #model.cuda()
+
+    elif args.model_version == 'qwen2.5':
+        processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-Chat-7B")
+        model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
+        "Qwen/Qwen2.5-VL-Chat-7B", torch_dtype=torch.bfloat16, device_map="auto"
         )
         model.eval()
         model = model.to(torch.bfloat16).cuda().eval()
