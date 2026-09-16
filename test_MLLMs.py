@@ -289,9 +289,9 @@ def main():
         #model.cuda()
 
     elif args.model_version == 'qwen2.5':
-        processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-Chat-7B")
+        processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-Chat-7B-Instruct")
         model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-        "Qwen/Qwen2.5-VL-Chat-7B", torch_dtype=torch.bfloat16, device_map="auto"
+        "Qwen/Qwen2.5-VL-Chat-7B-Instruct", torch_dtype=torch.bfloat16, device_map="auto"
         )
         model.eval()
         model = model.to(torch.bfloat16).cuda().eval()
