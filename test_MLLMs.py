@@ -255,6 +255,10 @@ def main():
     parser.add_argument('--image_type', type=str, choices=['counterfact', 'real'], required=True, help="Choose image type.")
     parser.add_argument('--most', type=str, choices=['True', 'False'], required=True, help="Choose if using 'this' or 'most'.")
 
+
+        # adding my own args for testing.
+    parser.add_argument('--qwen25_checkpoint', type=str, choices=['base', 'dyco'] , help="Checkpoint for Qwen2 model.")
+
     args = parser.parse_args()
     random.seed(0)
     print(torch.cuda.is_available())
@@ -289,9 +293,14 @@ def main():
         #model.cuda()
 
     elif args.model_version == 'qwen2.5':
-        processor = AutoProcessor.from_pretrained("Qwen/Qwen2.5-VL-Chat-7B-Instruct")
+
+        if args.qwen25_checkpoint == 'dyco':
+            model_path = "LinYuanMo/DyCo-RL-Qwen2.5-VL-7B"
+        else:
+            model_path = "Qwen/Qwen2.5-VL-7B-Instruct"
+        processor = AutoProcessor.from_pretrained(model_path)
         model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-        "Qwen/Qwen2.5-VL-Chat-7B-Instruct", torch_dtype=torch.bfloat16, device_map="auto"
+        model_path, torch_dtype=torch.bfloat16, device_map="auto"
         )
         model.eval()
         model = model.to(torch.bfloat16).cuda().eval()
