@@ -48,7 +48,16 @@ def clean_instruction_tokens(text):
     return cleaned_text.strip()
 
 
-def mllm_testing(df, processor, model, model_name, task, image_type, most="True"):
+def mllm_testing(
+    df,
+    processor,
+    model,
+    model_name,
+    task,
+    image_type,
+    most="True",
+    prompt_mode="normal"
+):
     with torch.inference_mode():
         torch.cuda.empty_cache()
         gc.collect()
@@ -158,13 +167,43 @@ def mllm_testing(df, processor, model, model_name, task, image_type, most="True"
                 pil_img = Image.open(io.BytesIO(image_path)).convert("RGB") 
                 pil_img = pil_img.resize((224, 224), Image.LANCZOS)
                 
-                messages = [{
-                    "role": "user",
-                    "content": [
-                        {"type": "image", "image": pil_img},  # Pass resized image object
-                        {"type": "text", "text": prompt},
-                    ],
-                }]
+                if prompt_mode == "normal":
+                    messages = [{
+                        "role": "user",
+                        "content": [
+                            {"type": "image", "image": pil_img},
+                            {"type": "text", "text": prompt},
+                        ],
+                    }]
+
+                    max_new_tokens = 10
+
+                elif prompt_mode == "dyco":
+                    dyco_prompt = (
+                        "A conversation between User and Assistant. "
+                        "The user asks a question, and the Assistant solves it. "
+                        "The assistant first thinks about the reasoning process in the mind "
+                        "and then provides the user with the answer. "
+                        "The reasoning process and answer are enclosed within "
+                        "<think> </think> and <answer> </answer> tags, respectively.\n"
+                        f"Question: {prompt}"
+                    )
+
+                    messages = [
+                        {
+                            "role": "system",
+                            "content": "You are a helpful assistant."
+                        },
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "image", "image": pil_img},
+                                {"type": "text", "text": dyco_prompt},
+                            ],
+                        },
+                    ]
+
+                    max_new_tokens = 2048
     
                 text = processor.apply_chat_template(
                     messages, tokenize=False, add_generation_prompt=True
@@ -186,7 +225,7 @@ def mllm_testing(df, processor, model, model_name, task, image_type, most="True"
     
                 generated_ids = model.generate(
                     **inputs,
-                    max_new_tokens=10,
+                    max_new_tokens=max_new_tokens,
                     do_sample=False,
                     use_cache=False
                 )
@@ -257,7 +296,16 @@ def main():
 
 
         # adding my own args for testing.
-    parser.add_argument('--qwen25_checkpoint', type=str, choices=['base', 'dyco'] , help="Checkpoint for Qwen2 model.")
+    parser.add_argument('--qwen25_checkpoint', type=str, choices=['base', 'dyco'] , help="Checkpoint for Qwen2.5 model.")
+
+    parser.add_argument(
+    '--prompt_mode',
+    type=str,
+    choices=['normal', 'dyco'],
+    default='normal',
+    help="Use normal direct-answer prompt or DyCo reasoning prompt."
+)
+
 
     args = parser.parse_args()
     random.seed(0)
@@ -329,7 +377,16 @@ def main():
     for i in range(0, len(df), batch_size):
         batch_df = df.iloc[i:i + batch_size].copy()
         with torch.inference_mode():
-            result_df = mllm_testing(batch_df, processor, model, args.model_version, args.task, args.image_type, most=args.most)
+            result_df = mllm_testing(
+                batch_df,
+                processor,
+                model,
+                args.model_version,
+                args.task,
+                args.image_type,
+                most=args.most,
+                prompt_mode=args.prompt_mode
+            )
             
         results.append(result_df)
         del result_df
@@ -339,7 +396,12 @@ def main():
     
     df = pd.concat(results, ignore_index=True)
 
-    df.to_csv(f'most_instances_plural_bigger_{args.task}_new_MLLM_results_most_{args.most}_{args.image_type}_line_{args.line}_{args.model_version}_{args.dataset_size}.csv', index=False)
+    df.to_csv(
+        f'most_instances_plural_bigger_{args.task}_new_MLLM_results_'
+        f'most_{args.most}_{args.image_type}_line_{args.line}_'
+        f'{args.model_version}_{args.qwen25_checkpoint}_{args.prompt_mode}_{args.dataset_size}.csv',
+        index=False
+    )
 
     
 if __name__ == "__main__":
