@@ -7,7 +7,7 @@ import pandas as pd
 CSV_PATH = (
     "/workspace/pixels_vs_priors/"
     "most_instances_plural_bigger_color_new_MLLM_results_"
-    "most_True_counterfact_line_True_qwen2.5_dyco_dyco_full.csv"
+    "most_True_counterfact_line_True_qwen2.5_base_dyco_full.csv"
 )
 
 

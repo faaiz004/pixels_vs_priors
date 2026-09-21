@@ -18,6 +18,7 @@ import matplotlib.pyplot as plt
 import random
 
 from transformers import AutoProcessor, LlavaForConditionalGeneration, BitsAndBytesConfig
+from tqdm import tqdm
 
 # JANUS IMPORTS
 from janus.models import MultiModalityCausalLM, VLChatProcessor
@@ -56,7 +57,8 @@ def mllm_testing(
     task,
     image_type,
     most="True",
-    prompt_mode="normal"
+    prompt_mode="normal",
+    max_new_tokens=10
 ):
     with torch.inference_mode():
         torch.cuda.empty_cache()
@@ -146,7 +148,7 @@ def mllm_testing(
                     pad_token_id=tokenizer.eos_token_id,
                     bos_token_id=tokenizer.bos_token_id,
                     eos_token_id=tokenizer.eos_token_id,
-                    max_new_tokens=10,
+                    max_new_tokens=max_new_tokens,
                     num_beams=1,
                     do_sample=False,
                     use_cache=True,
@@ -159,7 +161,7 @@ def mllm_testing(
                 inputs = processor(images=image, text=prompt, return_tensors='pt')
                 inputs = {k: v.to('cuda') for k, v in inputs.items()} 
                 # Perform a forward pass with the model
-                outputs = model.generate(**inputs, max_new_tokens=10, num_beams=1, do_sample=False, temperature=1.0)  # Adjust max_new_tokens as needed
+                outputs = model.generate(**inputs, max_new_tokens=max_new_tokens, num_beams=1, do_sample=False, temperature=1.0)  # Adjust max_new_tokens as needed
                 predicted_answer = processor.tokenizer.decode(outputs[0], skip_special_tokens=True)
                 predicted_answer = clean_instruction_tokens(predicted_answer)
                 
@@ -175,8 +177,6 @@ def mllm_testing(
                             {"type": "text", "text": prompt},
                         ],
                     }]
-
-                    max_new_tokens = 10
 
                 elif prompt_mode == "dyco":
                     dyco_prompt = (
@@ -203,7 +203,6 @@ def mllm_testing(
                         },
                     ]
 
-                    max_new_tokens = 2048
     
                 text = processor.apply_chat_template(
                     messages, tokenize=False, add_generation_prompt=True
@@ -227,7 +226,7 @@ def mllm_testing(
                     **inputs,
                     max_new_tokens=max_new_tokens,
                     do_sample=False,
-                    use_cache=False
+                    use_cache=True
                 )
     
                 generated_ids_trimmed = [
@@ -304,7 +303,14 @@ def main():
     choices=['normal', 'dyco'],
     default='normal',
     help="Use normal direct-answer prompt or DyCo reasoning prompt."
-)
+    )
+
+    parser.add_argument(
+        '--max_new_tokens',
+        type=int,
+        default=10,
+        help="Maximum number of new tokens to generate."
+    )
 
 
     args = parser.parse_args()
@@ -374,8 +380,14 @@ def main():
     batch_size = 1
     results = []
     
-    for i in range(0, len(df), batch_size):
+    for i in tqdm(
+        range(0, len(df), batch_size),
+        total=(len(df) + batch_size - 1) // batch_size,
+        desc="Processing",
+        unit="example"
+    ):
         batch_df = df.iloc[i:i + batch_size].copy()
+
         with torch.inference_mode():
             result_df = mllm_testing(
                 batch_df,
@@ -385,10 +397,12 @@ def main():
                 args.task,
                 args.image_type,
                 most=args.most,
-                prompt_mode=args.prompt_mode
+                prompt_mode=args.prompt_mode,
+                max_new_tokens=args.max_new_tokens
             )
-            
+
         results.append(result_df)
+
         del result_df
         torch.cuda.empty_cache()
         torch.cuda.ipc_collect()
@@ -399,7 +413,8 @@ def main():
     df.to_csv(
         f'most_instances_plural_bigger_{args.task}_new_MLLM_results_'
         f'most_{args.most}_{args.image_type}_line_{args.line}_'
-        f'{args.model_version}_{args.qwen25_checkpoint}_{args.prompt_mode}_{args.dataset_size}.csv',
+        f'{args.model_version}_{args.qwen25_checkpoint}_{args.prompt_mode}_'
+        f'max{args.max_new_tokens}_{args.dataset_size}.csv',
         index=False
     )
 
