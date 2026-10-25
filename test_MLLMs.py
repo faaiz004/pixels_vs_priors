@@ -21,8 +21,8 @@ from transformers import AutoProcessor, LlavaForConditionalGeneration, BitsAndBy
 from tqdm import tqdm
 
 # JANUS IMPORTS
-from janus.models import MultiModalityCausalLM, VLChatProcessor
-from janus.utils.io import load_pil_images
+# from janus.models import MultiModalityCausalLM, VLChatProcessor
+# from janus.utils.io import load_pil_images
 import base64
 
 import argparse
@@ -184,6 +184,7 @@ def mllm_testing(
                         "The user asks a question, and the Assistant solves it. "
                         "The assistant first thinks about the reasoning process in the mind "
                         "and then provides the user with the answer. "
+                        "Keep the reasoning process to approximately 32 words. "
                         "The reasoning process and answer are enclosed within "
                         "<think> </think> and <answer> </answer> tags, respectively.\n"
                         f"Question: {prompt}"
@@ -295,7 +296,8 @@ def main():
 
 
         # adding my own args for testing.
-    parser.add_argument('--qwen25_checkpoint', type=str, choices=['base', 'dyco'] , help="Checkpoint for Qwen2.5 model.")
+    parser.add_argument('--qwen25_checkpoint', type=str, choices=['base', 'dyco'], default='base', help="Checkpoint for Qwen2.5 model.")
+    parser.add_argument('--model_size', type=str, choices=['3b', '7b'], default='7b', help="Qwen2.5-VL model size (base checkpoint only).")
 
     parser.add_argument(
     '--prompt_mode',
@@ -349,9 +351,12 @@ def main():
     elif args.model_version == 'qwen2.5':
 
         if args.qwen25_checkpoint == 'dyco':
+            if args.model_size != '7b':
+                raise ValueError("The released DyCo-RL checkpoint is 7B only; use --model_size 7b.")
             model_path = "LinYuanMo/DyCo-RL-Qwen2.5-VL-7B"
         else:
-            model_path = "Qwen/Qwen2.5-VL-7B-Instruct"
+            model_path = f"Qwen/Qwen2.5-VL-{args.model_size.upper()}-Instruct"
+        print(f"Loading {model_path}")
         processor = AutoProcessor.from_pretrained(model_path)
         model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
         model_path, torch_dtype=torch.bfloat16, device_map="auto"
@@ -413,7 +418,7 @@ def main():
     df.to_csv(
         f'most_instances_plural_bigger_{args.task}_new_MLLM_results_'
         f'most_{args.most}_{args.image_type}_line_{args.line}_'
-        f'{args.model_version}_{args.qwen25_checkpoint}_{args.prompt_mode}_'
+        f'{args.model_version}_{args.model_size}_{args.qwen25_checkpoint}_{args.prompt_mode}_'
         f'max{args.max_new_tokens}_{args.dataset_size}.csv',
         index=False
     )
