@@ -179,6 +179,14 @@ def mllm_testing(
                     }]
 
                 elif prompt_mode == "dyco":
+                    # Remove the direct-answer instructions: they override the
+                    # reasoning instruction and the model answers in one word.
+                    reasoning_question = (
+                        prompt.replace("Answer with one word.", "")
+                              .replace("Answer with the correct option.", "")
+                              .strip()
+                    )
+                    answer_format = "a single color word" if task == "color" else "one of the two options"
                     dyco_prompt = (
                         "A conversation between User and Assistant. "
                         "The user asks a question, and the Assistant solves it. "
@@ -187,7 +195,8 @@ def mllm_testing(
                         "Keep the reasoning process to approximately 32 words. "
                         "The reasoning process and answer are enclosed within "
                         "<think> </think> and <answer> </answer> tags, respectively.\n"
-                        f"Question: {prompt}"
+                        f"Question: {reasoning_question}\n"
+                        f"Inside the <answer> </answer> tags, give only the final answer: {answer_format}."
                     )
 
                     messages = [
@@ -414,6 +423,9 @@ def main():
         gc.collect()
     
     df = pd.concat(results, ignore_index=True)
+
+    # Don't save raw image bytes into the results CSV (keeps files small).
+    df = df.drop(columns=['original_image', 'counterfact_image'], errors='ignore')
 
     df.to_csv(
         f'most_instances_plural_bigger_{args.task}_new_MLLM_results_'
