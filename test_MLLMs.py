@@ -304,8 +304,8 @@ def main():
     parser.add_argument('--most', type=str, choices=['True', 'False'], required=True, help="Choose if using 'this' or 'most'.")
 
 
-        # adding my own args for testing.
-    parser.add_argument('--qwen25_checkpoint', type=str, choices=['base', 'dyco'], default='base', help="Checkpoint for Qwen2.5 model.")
+    # adding my own args for testing.
+    parser.add_argument('--qwen25_checkpoint', type=str, choices=['base', 'dyco', 'grpo'], default='base', help="Checkpoint for Qwen2.5 model.")
     parser.add_argument('--model_size', type=str, choices=['3b', '7b'], default='7b', help="Qwen2.5-VL model size (base checkpoint only).")
 
     parser.add_argument(
@@ -358,21 +358,25 @@ def main():
         #model.cuda()
 
     elif args.model_version == 'qwen2.5':
+        base_path = f"Qwen/Qwen2.5-VL-{args.model_size.upper()}-Instruct"
 
         if args.qwen25_checkpoint == 'dyco':
-            if args.model_size != '7b':
-                raise ValueError("The released DyCo-RL checkpoint is 7B only; use --model_size 7b.")
-            model_path = "LinYuanMo/DyCo-RL-Qwen2.5-VL-7B"
+            model_path = f"LinYuanMo/DyCo-RL-Qwen2.5-VL-{args.model_size.upper()}"
+            processor_path = model_path
+        elif args.qwen25_checkpoint == 'grpo':
+            model_path = f"faaiz004/grpo-qwen2.5-vl-{args.model_size}-thinklite"
+            processor_path = base_path
         else:
-            model_path = f"Qwen/Qwen2.5-VL-{args.model_size.upper()}-Instruct"
-        print(f"Loading {model_path}")
-        processor = AutoProcessor.from_pretrained(model_path)
+            model_path = base_path
+            processor_path = base_path
+
+        print(f"Loading model {model_path} | processor {processor_path}")
+        processor = AutoProcessor.from_pretrained(processor_path)
         model = Qwen2_5_VLForConditionalGeneration.from_pretrained(
-        model_path, torch_dtype=torch.bfloat16, device_map="auto"
+            model_path, torch_dtype=torch.bfloat16, device_map="auto"
         )
         model.eval()
         model = model.to(torch.bfloat16).cuda().eval()
-        #model.cuda()
 
     dataset = load_dataset("mgolov/Visual-Counterfact")
 
